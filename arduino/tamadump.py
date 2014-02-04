@@ -1,8 +1,8 @@
 ################################################################
-#  tamadumper v0.07                        Mr Blinky Jan 2014  #
+#  tamadumper v0.08                        Mr Blinky Feb 2014  #
 ################################################################
 
-# written using Python 2.7.1 win32 & pyserial 2.7 win32 #
+# Developed using Python 2.7.1 win32 & pyserial 2.7 win32 #
 
 import serial #Requires pySerial to be installed
 import time
@@ -68,15 +68,17 @@ chipInfo	=[
 def usage():
 	print('\nUSAGE:\n\ntamadump.py option commport [start] [length] [filename]\n')
 	print('-c chip erase')
+	print('-e erase block')
 	print('-d dump flash')
 	print('-i read device ID')
 	print('-p program flash')
 	print('-v verify flash')
 	print('\n Defaults: start = 0, length = device dependent')
 	print('\nExamples:')
-	print ('tamadump.py /r COM3 dump.bin')
-	print ('tamadump.py /r COM3 524288 dump.bin')
-	print ('tamadump.py /r COM3 0 524288 dump.bin')
+	print ('tamadump.py -d COM3 dump.bin')
+	print ('tamadump.py -d COM3 262144 dump.bin')
+	print ('tamadump.py -d COM3 0 262144 dump.bin')
+	print ('tamadump.py -e COM3 0 4096')
 	return
 
 def resetTimer():
@@ -123,7 +125,19 @@ def chipErase():
 	print (ser.readline())
 	printTimer()
 	return
-
+	
+def	erase(start, length):
+	resetTimer()
+	ser.write('a'+start)
+	ser.readline()
+	ser.write('l'+length)
+	ser.readline()
+	ser.write('e')
+	print (ser.readline())
+	print (ser.readline())
+	printTimer()
+	return
+	
 def dump(start, length, filename):
 	resetTimer()
 	print 'Dumping ...'
@@ -205,9 +219,13 @@ if len(sys.argv) == 4 :
 	chipLen  = str(chipSizes[chip])
 	chipFile = sys.argv[3]
 elif len(sys.argv) == 5 :
-	chipAddr = '0'
-	chipLen  = sys.argv[3]
-	chipFile = sys.argv[4]
+	if sys.argv[1] == '-e':
+		chipAddr = sys.argv[3]
+		chipLen  = sys.argv[4]
+	else:
+		chipAddr = '0'
+		chipLen  = sys.argv[3]
+		chipFile = sys.argv[4]
 elif len(sys.argv) == 6:
 	chipAddr = sys.argv[3]
 	chipLen  = sys.argv[4]
@@ -218,6 +236,8 @@ if sys.argv[1] == '-d' :
 	dump(chipAddr,chipLen,chipFile)
 elif sys.argv[1] == '-c' :
 	chipErase()
+elif sys.argv[1] == '-e' :
+	erase(chipAddr,chipLen)
 elif sys.argv[1] == '-i' :	
 	chipStatus()
 elif sys.argv[1] == '-p' :

@@ -1,26 +1,26 @@
 
-/* tama dumper arduino (leonardo) v0.07 by Mr.Blinky */
-/* build using Arduino 1.0.5                         */
+/* tama dumper arduino (leonardo) v0.08 by Mr Blinky Feb 2014 */
+/* build using Arduino 1.0.5                                  */
 
 #include <SPI.h>
 
 #undef  SS     // SS (SPI Slave Select) on Leonardo is  connected to RxLED and not accessible on any of the normal pins
 #define SS 13  // re-assign slave select so SPI.begin() initializes the proper pin
 
-#define SPI_RDSR1  0x05
-#define SPI_RDSR2  0x35
-#define SPI_WRSR   0x01
-#define SPI_RDID   0x9F
-#define SPI_READ   0x03
+#define SPI_RDS1  0x05
+#define SPI_RDS2  0x35
+#define SPI_WRSR  0x01
+#define SPI_RDID  0x9F
+#define SPI_READ  0x03
 
-#define SPI_WREN   0x06
-#define SPI_WRDI   0x04
-#define SPI_PROG   0x02
+#define SPI_WREN  0x06
+#define SPI_WRDI  0x04
+#define SPI_PROG  0x02
 
-#define SPI_ERSCT  0x20
-#define SPI_ER32K  0x52
-#define SPI_ER64K  0xD8
-#define SPI_ERCHP  0x60
+#define SPI_ESCT  0x20
+#define SPI_E32K  0x52
+#define SPI_E64K  0xD8
+#define SPI_ECHP  0x60
 
 byte blank = 0;              //set when chip erased
 unsigned long addr = 0;      //default start address for dump / flash
@@ -43,6 +43,7 @@ void loop() {
     case 'a': setAddress(); break;
     case 'l': setLength(); break;
     case 'c': chipErase(); break;
+    case 'e': erase(); break;
     case 'd': dump(); break;
     case 'h': hexDump(); break;
     case 'p': program(); break;
@@ -73,10 +74,10 @@ void info() {
   printHex(SPI.transfer(0xFF));
   endCmd();
   Serial.print("\nStatus: ");
-  setCmd(SPI_RDSR2);
+  setCmd(SPI_RDS2);
   printHex(SPI.transfer(0xFF));
   endCmd();
-  setCmd(SPI_RDSR1);
+  setCmd(SPI_RDS1);
   printHex(SPI.transfer(0xFF));
   endCmd();
   Serial.println();
@@ -108,14 +109,48 @@ void setLength() {
 void chipErase() {
   setCmd(SPI_WREN);
   endCmd();
-  setCmd(SPI_ERCHP);
+  setCmd(SPI_ECHP);
   endCmd();
   Serial.println("Erasing chip ...");
-  setCmd(SPI_RDSR1);
-  while (SPI.transfer(SPI_RDSR1) & 0x01) ;
+  setCmd(SPI_RDS1);
+  while (SPI.transfer(SPI_RDS1) & 0x01) ;
   Serial.println("Chip Erased");
   endCmd();
   blank = 1; //signal chip is empty
+}
+
+void erase() {
+  unsigned long p = addr;
+  unsigned long e = addr + len;
+  unsigned long i;
+  byte c;
+  Serial.println("Erasing block ...");
+  while (p < e) {
+    if (!(p & 0xFFFF) && ((e - p) > 0xFFFF)) { //64K block
+      c = SPI_E64K;
+      i = 0x10000;    
+    }
+    else if (!(p & 0x7FFF) && ((e - p) > 0x7FFF)) { //32K block
+      c = SPI_E32K;
+      i = 0x8000;    
+    }
+    else { // 4K sector
+      c = SPI_ESCT;
+      i = 0x1000;    
+    }
+    setCmd(SPI_WREN);
+    endCmd();
+    setCmd(c);
+    SPI.transfer((p >> 16) & 0xFF);
+    SPI.transfer((p >> 8) & 0xFF);
+    SPI.transfer(p & 0xFF);
+    endCmd();
+    setCmd(SPI_RDS1);
+    while (SPI.transfer(0xFF) & 0x01);
+    endCmd();
+    p += i;
+  }
+  Serial.println("Block Erased");
 }
 
 void program() {
@@ -133,7 +168,7 @@ void program() {
       SPI.transfer(buf[i]);
     }
     endCmd();
-    setCmd(SPI_RDSR1);
+    setCmd(SPI_RDS1);
     while (SPI.transfer(0xFF) & 0x01);
     endCmd();
     Serial.println();
